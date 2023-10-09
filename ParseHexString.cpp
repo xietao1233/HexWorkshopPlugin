@@ -1,4 +1,4 @@
-//////////////////////////////////////////////////////////////////////////////
+ï»¿//////////////////////////////////////////////////////////////////////////////
 // SelectionExample.cpp - Sample Hex Workshop Plugin
 //
 // This source code and information is provided "as is" without any warranty
@@ -19,6 +19,7 @@
 #include <stdarg.h>
 
 #include "hwapi.h"
+#include "base64.h"
 
 #define IsHexChar(a) ((a >= '0' && a <= '9') || (a >= 'A' && a <= 'F') || (a >= 'a' && a <= 'f'))
 #define IsSkipChar(a) ((a == ' ') || (a == 0xd) || (a == 0xa) || (a == '\t'))
@@ -27,69 +28,80 @@
 #define IsLower(a) ((a >= 'A' && a <= 'F'))
 
 // Plug-in Command constants
-#define PARSE_HEX_STRING  _T("Parse Hex String\\Parse")
+#define PARSE_HEX_STRING  _T("parse to Binary by\\Hex")
+#define PARSE_BASE64_STRING  _T("parse to Binary by\\Base64")
 
 // Forward declarations (helper functions that perform tasks)
 BOOL doParseHexString(HWSESSION hSession, HWDOCUMENT hDoc);
+BOOL doParseBase64String(HWSESSION hSession, HWDOCUMENT hDoc);
 
 // DllMain
-BOOL APIENTRY DllMain(HANDLE hModule, 
-                      DWORD  ul_reason_for_call, 
-                      LPVOID lpReserved)
+BOOL APIENTRY DllMain(HANDLE hModule,
+	DWORD  ul_reason_for_call,
+	LPVOID lpReserved)
 {
-    return TRUE;
+	return TRUE;
 }
 
 // Plugin Entrypoint: Identify available Plugin-Commands
 HWAPIEP BOOL HWPLUGIN_Identify(LPTSTR lpstrPluginCommand,
-                               size_t nMaxPluginCommand)
+	size_t nMaxPluginCommand)
 {
 	_sntprintf(lpstrPluginCommand, nMaxPluginCommand,
-		_T("%s"),
-        PARSE_HEX_STRING);
+		_T("%s;%s"),
+		PARSE_HEX_STRING, PARSE_BASE64_STRING);
 
-    return TRUE ;
+	return TRUE;
 }
 
 
 // Plugin Entrypoint: Determine capabilities/pre-conditions for a command
 HWAPIEP DWORD HWPLUGIN_RequestCapabilities(LPCTSTR lpstrPluginCommand)
 {
-    // Return unique capabilities for each Plug-in command
+	// Return unique capabilities for each Plug-in command
 
-    if (_tcsicmp(lpstrPluginCommand, PARSE_HEX_STRING) == 0)
-    {
-        // Copy to new file require a file, but selection is optional
-        return HWPLUGIN_CAP_FILE_REQUIRE ;
-    }
+	if (_tcsicmp(lpstrPluginCommand, PARSE_HEX_STRING) == 0)
+	{
+		// Copy to new file require a file, but selection is optional
+		return HWPLUGIN_CAP_FILE_REQUIRE;
+	}
+	else if (_tcsicmp(lpstrPluginCommand, PARSE_BASE64_STRING) == 0)
+	{
+		return HWPLUGIN_CAP_FILE_REQUIRE;
+	}
 
-    return 0 ;
+	return 0;
 }
 
 // Plugin Entrypoint: Execute a plugin command
-HWAPIEP BOOL HWPLUGIN_Execute( LPCTSTR        lpstrPluginCommand,
-                               HWSESSION    hSession,
-                               HWDOCUMENT    hDocument )
+HWAPIEP BOOL HWPLUGIN_Execute(LPCTSTR        lpstrPluginCommand,
+	HWSESSION    hSession,
+	HWDOCUMENT    hDocument)
 {
-    // Delegate plug-in command to helper functioms
-    if (_tcsicmp(lpstrPluginCommand, PARSE_HEX_STRING) == 0)
-    {
-        // parse hex string
-        return doParseHexString(hSession, hDocument) ;
-    }
-    else
-    {
-        // Unknown Command
-        return FALSE ;
-    }
+	// Delegate plug-in command to helper functioms
+	if (_tcsicmp(lpstrPluginCommand, PARSE_HEX_STRING) == 0)
+	{
+		// parse hex string
+		return doParseHexString(hSession, hDocument);
+	}
+	else if (_tcsicmp(lpstrPluginCommand, PARSE_BASE64_STRING) == 0)
+	{
+		// parse hex string
+		return doParseBase64String(hSession, hDocument);
+	}
+	else
+	{
+		// Unknown Command
+		return FALSE;
+	}
 }
 
 BOOL doParseHexString(HWSESSION hSession, HWDOCUMENT hDoc)
 {
-    BOOL bReturn = FALSE;
+	BOOL bReturn = FALSE;
 	QWORD qwStartPosition;
 	QWORD qwLength;
-    HWND hMain = hwGetWindowHandle(hSession);
+	HWND hMain = hwGetWindowHandle(hSession);
 
 	// Check readonly document status
 	BOOL bReadOnly = TRUE;
@@ -100,86 +112,157 @@ BOOL doParseHexString(HWSESSION hSession, HWDOCUMENT hDoc)
 			_T("Document is read-only; cannot perform operation."),
 			_T("Error"),
 			MB_ICONSTOP | MB_APPLMODAL);
-        return bReturn;
+		return bReturn;
 	}
 
 	// Obtain starting position and length
-    if ((hwGetCaretPosition(hDoc, &qwStartPosition) == HWAPI_RESULT_SUCCESS) &&
-        (hwGetSelection(hDoc, &qwLength) == HWAPI_RESULT_SUCCESS))
-    {
-        HANDLE hClip = NULL; 
-        LPSTR pData = NULL;
-        LPSTR pStr = NULL;
+	if ((hwGetCaretPosition(hDoc, &qwStartPosition) == HWAPI_RESULT_SUCCESS) &&
+		(hwGetSelection(hDoc, &qwLength) == HWAPI_RESULT_SUCCESS))
+	{
+		HANDLE hClip = NULL;
+		LPSTR pData = NULL;
+		LPSTR pStr = NULL;
 
-        __try 
-        {
+		__try
+		{
 			// Group all changes into a single undo operation
 			hwUndoBeginGroup(hDoc);
 
-            if (!IsClipboardFormatAvailable(CF_TEXT))
-                __leave;
-            if (!OpenClipboard(hMain))
-            {    
-                MessageBox(hMain, _T("·¢¿ª¼ôÇÐ°åÊ§°Ü!"), _T("´íÎó"), MB_OK);
-                __leave;
-            }
+			if (!IsClipboardFormatAvailable(CF_TEXT))
+				__leave;
+			if (!OpenClipboard(hMain))
+			{
+				MessageBox(hMain, _T("æ‰“å¼€å‰ªåˆ‡æ¿å¤±è´¥!"), _T("é”™è¯¯"), MB_OK);
+				__leave;
+			}
 
-            hClip = GetClipboardData(CF_TEXT);
-            if (!hClip)
-                __leave;
-            pData = (LPSTR)GlobalLock(hClip);
+			hClip = GetClipboardData(CF_TEXT);
+			if (!hClip)
+				__leave;
+			pData = (LPSTR)GlobalLock(hClip);
 
-            size_t uDataLen = strlen(pData);
-            size_t u1 = 0, u2 = 0, l1 = uDataLen, l2 = 0;
-			if (uDataLen) 
-            {
-                l2 = ((uDataLen / 2) | 15) + 1;
-                pStr = new char[l2];
-                LPSTR p1 = pData, p2 = pStr;
-                char szBuff[4] = { 0 };
+			size_t uDataLen = strlen(pData);
+			size_t u1 = 0, u2 = 0, l1 = uDataLen, l2 = 0;
+			if (uDataLen)
+			{
+				l2 = ((uDataLen / 2) | 15) + 1;
+				pStr = new char[l2];
+				LPSTR p1 = pData, p2 = pStr;
+				char szBuff[4] = { 0 };
 
-                while ((p1 + 1) < (pData + uDataLen))
-                {
-                    if (IsHexChar(*p1) && IsHexChar(*(p1 + 1)))
-                    {
-                        szBuff[0] = *p1;
-                        szBuff[1] = *(p1+1);
-                        szBuff[2] = 0;
-                        *(p2 + u2) = (char)strtol(szBuff, 0, 16);
-                        u2 += 1;
-                        p1 += 2;
-                    }
-                    else if (IsSkipChar(*p1))
-                    {
-                        p1 += 1;
-                    }
-                    else
-                    {
-                        // error
+				while ((p1 + 1) < (pData + uDataLen))
+				{
+					if (IsHexChar(*p1) && IsHexChar(*(p1 + 1)))
+					{
+						szBuff[0] = *p1;
+						szBuff[1] = *(p1 + 1);
+						szBuff[2] = 0;
+						*(p2 + u2) = (char)strtol(szBuff, 0, 16);
+						u2 += 1;
+						p1 += 2;
+					}
+					else if (IsSkipChar(*p1))
+					{
+						p1 += 1;
+					}
+					else
+					{
+						// error
 						u2 = 0;
 						break;
-                    }
-                }
+					}
+				}
 
 				hwInsertAt(hDoc, qwStartPosition, pStr, u2);
 
 				if (p1 != (pData + uDataLen))
 				{
-					MessageBox(hMain, _T("½âÎöÈ±Ê§²¿·ÖÄ©Î²Êý¾Ý!"), _T("¾¯¸æ"), MB_OK);
+					MessageBox(hMain, _T("è§£æžç¼ºå¤±éƒ¨åˆ†æœ«å°¾æ•°æ®!"), _T("è­¦å‘Š"), MB_OK);
 				}
 			}
-        }
-        __finally
-        {
+		}
+		__finally
+		{
 			if (pStr)
 				delete[] pStr;
-            if (pData)
-                GlobalUnlock(pData);
-            CloseClipboard();
-		    // Commit the undo group
-		    hwUndoEndGroup(hDoc);
-        }
-    }
+			if (pData)
+				GlobalUnlock(pData);
+			CloseClipboard();
+			// Commit the undo group
+			hwUndoEndGroup(hDoc);
+		}
+	}
 
-    return bReturn;
+	return bReturn;
+}
+
+BOOL doParseBase64String(HWSESSION hSession, HWDOCUMENT hDoc)
+{
+	BOOL bReturn = FALSE;
+	QWORD qwStartPosition;
+	QWORD qwLength;
+	HWND hMain = hwGetWindowHandle(hSession);
+
+	// Check readonly document status
+	BOOL bReadOnly = TRUE;
+	hwGetReadOnly(hDoc, &bReadOnly);
+	if (bReadOnly)
+	{
+		MessageBox(hMain,
+			_T("Document is read-only; cannot perform operation."),
+			_T("Error"),
+			MB_ICONSTOP | MB_APPLMODAL);
+		return bReturn;
+	}
+
+	// Obtain starting position and length
+	if ((hwGetCaretPosition(hDoc, &qwStartPosition) == HWAPI_RESULT_SUCCESS) &&
+		(hwGetSelection(hDoc, &qwLength) == HWAPI_RESULT_SUCCESS))
+	{
+		HANDLE hClip = NULL;
+		LPSTR pData = NULL;
+		LPSTR pStr = NULL;
+
+		__try
+		{
+			// Group all changes into a single undo operation
+			hwUndoBeginGroup(hDoc);
+
+			if (!IsClipboardFormatAvailable(CF_TEXT))
+				__leave;
+			if (!OpenClipboard(hMain))
+			{
+				MessageBox(hMain, _T("æ‰“å¼€å‰ªåˆ‡æ¿å¤±è´¥!"), _T("é”™è¯¯"), MB_OK);
+				__leave;
+			}
+
+			hClip = GetClipboardData(CF_TEXT);
+			if (!hClip)
+				__leave;
+			pData = (LPSTR)GlobalLock(hClip);
+
+			SIZE_T len = strlen(pData);
+			if (len == 0)
+				__leave;
+			pStr = (LPSTR)malloc(BASE64_DECODE_OUT_SIZE(len));
+			RtlZeroMemory(pStr, BASE64_DECODE_OUT_SIZE(len));
+			SIZE_T ret = base64_decode(pData, len, (unsigned char*)pStr);
+			if (ret == 0 || ret > BASE64_DECODE_OUT_SIZE(len))
+				__leave;
+
+			hwInsertAt(hDoc, qwStartPosition, pStr, ret);
+		}
+		__finally
+		{
+			if (pStr)
+				free(pStr);
+			if (pData)
+				GlobalUnlock(pData);
+			CloseClipboard();
+			// Commit the undo group
+			hwUndoEndGroup(hDoc);
+		}
+	}
+
+	return bReturn;
 }
